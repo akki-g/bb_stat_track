@@ -142,3 +142,6 @@ class StatsEngine:
                 summary.append(f"      Travels: {stats['travels']}")
         
         return '\n'.join(summary)
+    
+
+    

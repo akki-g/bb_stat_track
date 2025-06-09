@@ -93,3 +93,5 @@ class SimpleTracker:
         union = area1 + area2 - intersection
         
         return intersection / union if union > 0 else 0.0
+    
+    
