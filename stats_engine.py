@@ -110,8 +110,21 @@ class StatsEngine:
     
     def save_stats(self, filename='game_stats.json'):
         """Save statistics to file"""
+        # Convert defaultdict instances to regular dicts for JSON serialization
+        serializable = {
+            'start_time': self.game_stats['start_time'],
+            'teams': {},
+            'events': self.game_stats['events']
+        }
+
+        for team, data in self.game_stats['teams'].items():
+            serializable['teams'][team] = {
+                'players': data['players'],
+                'total': dict(data['total'])
+            }
+
         with open(filename, 'w') as f:
-            json.dump(self.game_stats, f, indent=2)
+            json.dump(serializable, f, indent=2)
     
     def generate_summary(self):
         """Generate game summary"""
