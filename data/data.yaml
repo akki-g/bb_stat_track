@@ -1,0 +1,10 @@
+names:
+- ball
+- player-team1
+- player-team2
+- referee
+nc: 4
+path: data
+test: images/test
+train: images/train
+val: images/val
