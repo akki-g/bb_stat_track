@@ -1,0 +1,6 @@
+path: data/unified_dataset
+train: images/train
+val: images/val
+test: images/test
+nc: 4
+names: ['ball', 'player-team1', 'player-team2', 'referee']
