@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 from sklearn.cluster import KMeans
 import yaml
 
-# Paths to zip archives
+# Paths to dataset archives or folders
 ZIPS = {
     'player_detect': 'data/archive (8).zip',
     'ball_tracking': 'data/archive (7).zip',
@@ -21,18 +21,12 @@ IMAGES_DIR = os.path.join(BASE_DIR, 'images')
 LABELS_DIR = os.path.join(BASE_DIR, 'labels')
 SPLITS = ['train', 'val', 'test']
 
-def convert_ball_tracking():
-    bt_dir = os.path.join(BASE_DIR, 'ball_tracking')
-    csv_path = os.path.join(bt_dir, 'basketball_tracking.csv')
-    with open(csv_path, newline='') as f:
-        reader = csv.DictReader(f)
-        print("CSV headers:", reader.fieldnames)
-        return 
 
 # Class mapping: (source_dataset, original_class_id) -> unified_class_id
 CLASS_MAP = {
-    # player_detect: original 0=player
-    ('player_detect', 0): -2,  # generic player; will assign by color
+    # player_detect classes: 0=BasketBall, 1=Player
+    ('player_detect', 0): 0,   # ball
+    ('player_detect', 1): -2,  # generic player; will assign by color
     # ball_tracking: only ball class
     ('ball_tracking', 0): 0,
     # half_court original IDs per Roboflow export
@@ -44,40 +38,62 @@ CLASS_MAP = {
 
 # Step 1: Unpack all zip archives
 def unpack_zips():
-    for key, zip_path in ZIPS.items():
+    for key, src in ZIPS.items():
         dest = os.path.join(BASE_DIR, key)
         os.makedirs(dest, exist_ok=True)
-        with zipfile.ZipFile(zip_path, 'r') as z:
-            z.extractall(dest)
+        if not os.path.exists(src) and src.endswith('.zip'):
+            alt = src[:-4]  # try folder with same name
+            if os.path.exists(alt):
+                src = alt
+        if os.path.isdir(src):
+            shutil.copytree(src, dest, dirs_exist_ok=True)
+        elif os.path.isfile(src):
+            with zipfile.ZipFile(src, 'r') as z:
+                z.extractall(dest)
+        else:
+            raise FileNotFoundError(f"Dataset source not found: {src}")
     print("Unpacked all archives.")
 
 # Step 2: Convert ball_tracking CSV & XML to YOLO label txt
 def convert_ball_tracking():
     bt_dir = os.path.join(BASE_DIR, 'ball_tracking')
     img_dir = os.path.join(bt_dir, 'boxes')
-    lbl_dir = os.path.join(bt_dir, 'labels')
+    # place all frames into a train split
+    lbl_dir = os.path.join(bt_dir, 'labels', 'train')
+    img_out_dir = os.path.join(bt_dir, 'images', 'train')
     os.makedirs(lbl_dir, exist_ok=True)
+    os.makedirs(img_out_dir, exist_ok=True)
 
-    csv_path = os.path.join(bt_dir, 'basketball_tracking.csv')
-    # Assuming CSV columns: frame,x_min,y_min,x_max,y_max
-    with open(csv_path, newline='') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            frame = row['frame']
-            img_path = os.path.join(img_dir, frame)
-            if not os.path.exists(img_path):
-                continue
-            img = cv2.imread(img_path)
-            h, w = img.shape[:2]
-            xmin = float(row['x_min']); ymin = float(row['y_min'])
-            xmax = float(row['x_max']); ymax = float(row['y_max'])
-            x_center = ((xmin + xmax) / 2) / w
-            y_center = ((ymin + ymax) / 2) / h
-            bw = (xmax - xmin) / w
-            bh = (ymax - ymin) / h
-            lbl_path = os.path.join(lbl_dir, os.path.splitext(frame)[0] + '.txt')
-            with open(lbl_path, 'w') as lf:
-                lf.write(f"0 {x_center:.6f} {y_center:.6f} {bw:.6f} {bh:.6f}\n")
+    xml_path = os.path.join(bt_dir, 'annotations.xml')
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+
+    width = int(root.find('.//original_size/width').text)
+    height = int(root.find('.//original_size/height').text)
+
+    for box in root.iter('box'):
+        if box.get('outside') == '1':
+            continue
+        frame = int(box.get('frame'))
+        xtl = float(box.get('xtl'))
+        ytl = float(box.get('ytl'))
+        xbr = float(box.get('xbr'))
+        ybr = float(box.get('ybr'))
+
+        x_center = ((xtl + xbr) / 2) / width
+        y_center = ((ytl + ybr) / 2) / height
+        bw = (xbr - xtl) / width
+        bh = (ybr - ytl) / height
+
+        img_name = f"frame_{frame:06}.PNG"
+        src_img = os.path.join(img_dir, img_name)
+        dst_img = os.path.join(img_out_dir, img_name)
+        if os.path.exists(src_img) and not os.path.exists(dst_img):
+            shutil.copy(src_img, dst_img)
+
+        lbl_path = os.path.join(lbl_dir, f"frame_{frame:06}.txt")
+        with open(lbl_path, 'w') as lf:
+            lf.write(f"0 {x_center:.6f} {y_center:.6f} {bw:.6f} {bh:.6f}\n")
     print("Converted ball_tracking to YOLO format.")
 
 # Step 3: Remap & prune labels, stage for merging
@@ -134,11 +150,11 @@ def remap_labels():
 
 # Step 4: Train color centroids for team jersey assignment
 def train_color_centroids():
-    half_lbl_dir = os.path.join(BASE_DIR, 'half_court', 'labels', 'train')
-    half_img_dir = os.path.join(BASE_DIR, 'half_court', 'images', 'train')
-    samples = {1: [], 2: []}
+    half_lbl_dir = os.path.join(BASE_DIR, 'half_court', 'train', 'labels')
+    half_img_dir = os.path.join(BASE_DIR, 'half_court', 'train', 'images')
+    samples = {4: [], 5: []}
     for fname in os.listdir(half_lbl_dir):
-        parts = fname.split('.')[0]
+        parts = os.path.splitext(fname)[0]
         with open(os.path.join(half_lbl_dir, fname)) as lf:
             for line in lf:
                 cls, xc, yc, w, h = map(float, line.split())
@@ -168,8 +184,10 @@ def assign_teams():
     for split in SPLITS:
         lbl_dir = os.path.join(LABELS_DIR, split)
         img_dir = os.path.join(IMAGES_DIR, split)
+        if not os.path.isdir(lbl_dir):
+            continue
         for fname in os.listdir(lbl_dir):
-            parts = fname.split('.')[0]
+            parts = os.path.splitext(fname)[0]
             label_path = os.path.join(lbl_dir, fname)
             with open(label_path) as lf:
                 lines = [l.strip().split() for l in lf]
@@ -182,7 +200,10 @@ def assign_teams():
                 else:
                     # load image crop
                     if img is None:
-                        img = cv2.imread(os.path.join(img_dir, parts + os.path.splitext(fname)[1].replace('.txt', '.jpg')))
+                        img_path = os.path.join(img_dir, fname.replace('.txt', '.jpg'))
+                        if not os.path.exists(img_path):
+                            img_path = os.path.join(img_dir, fname.replace('.txt', '.PNG'))
+                        img = cv2.imread(img_path)
                     xc, yc, w, h = map(float, parts_line[1:])
                     h_img, w_img = img.shape[:2]
                     x1 = int((xc - w/2) * w_img); y1 = int((yc - h/2) * h_img)
