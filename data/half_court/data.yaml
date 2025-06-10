@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 8
+names: ['ball', 'basket', 'game clock', 'head coach', 'player-iowa', 'player-neb', 'referee', 'shot clock']
+
+roboflow:
+  workspace: mohamed-traore-2ekkp
+  project: half-court-basketball-kwk11
+  version: 3
+  license: CC BY 4.0
+  url: https://app.roboflow.com/mohamed-traore-2ekkp/half-court-basketball-kwk11/3

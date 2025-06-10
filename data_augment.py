@@ -16,7 +16,7 @@ ZIPS = {
 }
 
 # Unified dataset paths
-BASE_DIR = 'data/unified_dataset'
+BASE_DIR = 'data'
 IMAGES_DIR = os.path.join(BASE_DIR, 'images')
 LABELS_DIR = os.path.join(BASE_DIR, 'labels')
 SPLITS = ['train', 'val', 'test']
@@ -141,8 +141,8 @@ def remap_labels():
 
 # Step 4: Train color centroids for team jersey assignment
 def train_color_centroids():
-    half_lbl_dir = os.path.join(BASE_DIR, 'half_court', 'labels', 'train')
-    half_img_dir = os.path.join(BASE_DIR, 'half_court', 'images', 'train')
+    half_lbl_dir = os.path.join(BASE_DIR, 'half_court', 'train', 'labels')
+    half_img_dir = os.path.join(BASE_DIR, 'half_court', 'train', 'images')
     samples = {4: [], 5: []}
     for fname in os.listdir(half_lbl_dir):
         parts = fname.split('.')[0]
