@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 from sklearn.cluster import KMeans
 import yaml
 
-# Paths to zip archives
+# Paths to dataset archives or folders
 ZIPS = {
     'player_detect': 'data/archive (8).zip',
     'ball_tracking': 'data/archive (7).zip',
@@ -38,11 +38,20 @@ CLASS_MAP = {
 
 # Step 1: Unpack all zip archives
 def unpack_zips():
-    for key, zip_path in ZIPS.items():
+    for key, src in ZIPS.items():
         dest = os.path.join(BASE_DIR, key)
         os.makedirs(dest, exist_ok=True)
-        with zipfile.ZipFile(zip_path, 'r') as z:
-            z.extractall(dest)
+        if not os.path.exists(src) and src.endswith('.zip'):
+            alt = src[:-4]  # try folder with same name
+            if os.path.exists(alt):
+                src = alt
+        if os.path.isdir(src):
+            shutil.copytree(src, dest, dirs_exist_ok=True)
+        elif os.path.isfile(src):
+            with zipfile.ZipFile(src, 'r') as z:
+                z.extractall(dest)
+        else:
+            raise FileNotFoundError(f"Dataset source not found: {src}")
     print("Unpacked all archives.")
 
 # Step 2: Convert ball_tracking CSV & XML to YOLO label txt
@@ -145,7 +154,7 @@ def train_color_centroids():
     half_img_dir = os.path.join(BASE_DIR, 'half_court', 'train', 'images')
     samples = {4: [], 5: []}
     for fname in os.listdir(half_lbl_dir):
-        parts = fname.split('.')[0]
+        parts = os.path.splitext(fname)[0]
         with open(os.path.join(half_lbl_dir, fname)) as lf:
             for line in lf:
                 cls, xc, yc, w, h = map(float, line.split())
@@ -175,8 +184,10 @@ def assign_teams():
     for split in SPLITS:
         lbl_dir = os.path.join(LABELS_DIR, split)
         img_dir = os.path.join(IMAGES_DIR, split)
+        if not os.path.isdir(lbl_dir):
+            continue
         for fname in os.listdir(lbl_dir):
-            parts = fname.split('.')[0]
+            parts = os.path.splitext(fname)[0]
             label_path = os.path.join(lbl_dir, fname)
             with open(label_path) as lf:
                 lines = [l.strip().split() for l in lf]
