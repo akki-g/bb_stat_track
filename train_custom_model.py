@@ -6,32 +6,34 @@ Run this on a more powerful machine, then transfer to Pi
 
 from ultralytics import YOLO
 import yaml
+import os
+
+
+BASE_DIR = 'data/test'
 
 def create_basketball_dataset_yaml():
-    """Create dataset configuration for basketball training"""
     dataset_config = {
-        'path': './basketball_dataset',
+        'path': BASE_DIR,
         'train': 'images/train',
-        'val': 'images/val',
-        'test': 'images/test',
-        
+        'val':   'images/val',
+        'test':  'images/test',
+        'nc':    4,   # ← add this here if you’re generating YAML in code
         'names': {
-            0: 'player',
-            1: 'basketball',
-            2: 'hoop',
+            0: 'basketball',
+            1: 'player-team1',
+            2: 'player-team2',
             3: 'referee'
         }
     }
-    
-    with open('basketball_dataset.yaml', 'w') as f:
+    yaml_path = os.path.join(BASE_DIR, 'data.yaml')
+    with open(yaml_path, 'w') as f:
         yaml.dump(dataset_config, f)
-    
-    return 'basketball_dataset.yaml'
+    return yaml_path
 
 def train_basketball_model():
     """Train custom basketball detection model"""
     # Load a pretrained model
-    model = YOLO('yolov8n.pt')
+    model = YOLO('yolov8s.pt')
     
     # Create dataset config
     dataset_yaml = create_basketball_dataset_yaml()
@@ -45,7 +47,7 @@ def train_basketball_model():
         name='basketball_model',
         patience=50,
         save=True,
-        device='0'  # Use GPU if available
+        device='mps'  # Use GPU if available
     )
     
     # Export for Raspberry Pi

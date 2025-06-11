@@ -1,0 +1,10 @@
+names:
+  0: basketball
+  1: player-team1
+  2: player-team2
+  3: referee
+nc: 4
+path: data/test
+test: images/test
+train: images/train
+val: images/val

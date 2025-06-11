@@ -209,6 +209,8 @@ def assign_teams():
                     x1 = int((xc - w/2) * w_img); y1 = int((yc - h/2) * h_img)
                     x2 = int((xc + w/2) * w_img); y2 = int((yc + h/2) * h_img)
                     crop = img[y1:y2, x1:x2]
+                    if crop.size == 0:
+                        continue
                     avg_color = crop.reshape(-1, 3).mean(axis=0)
                     # compare to centroids
                     d1 = np.linalg.norm(avg_color - centroids[4])
