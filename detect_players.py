@@ -7,12 +7,14 @@ import time
 class PlayerDetector:
     def __init__(self):
         # Load YOLOv8n model
-        self.model = YOLO('yolov8n.pt')
+        self.model = YOLO('best_float16.tflite')
         
         # Basketball-relevant classes
         self.relevant_classes = {
-            0: 'person',
-            32: 'sports ball'
+            0: 'basketball',
+            1: 'player-team1',
+            2: 'player-team2',
+            3: 'referee'
         }
         
     def detect_frame(self, frame):
